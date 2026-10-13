@@ -1,0 +1,10 @@
+# Normalize text files to LF
+* text=auto
+
+# Use LF for source code and configuration
+*.py text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.md text eol=lf

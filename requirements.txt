@@ -1,0 +1,7 @@
+numpy
+scipy
+PyYAML
+matplotlib
+Pillow
+urbaning==1.0.1
+pytest

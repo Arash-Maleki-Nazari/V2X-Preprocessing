@@ -1,0 +1,8 @@
+datasets:
+  urbaning: datasets/UrbanIng-V2X
+  v2xpnp: datasets/V2XPnP
+  tumtraf: datasets/TUMTraf
+  deepaccident: datasets/DeepAccident
+
+outputs:
+  root: outputs
