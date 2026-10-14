@@ -24,7 +24,7 @@ Important validation limits
   ``AnnotationData.extras['native_annotations_by_agent']``. Canonical boxes
   remain empty rather than mislabeling native geometry as reference geometry.
 * Native LiDAR .npz decoding is unverified. Paths are preserved, but
-  ``AgentData.lidar`` is None.
+  ``AgentData.lidar`` is None. 
 
 Pickle loading is unsafe for untrusted inputs. Only load info files obtained
 from a trusted source or generated locally.
