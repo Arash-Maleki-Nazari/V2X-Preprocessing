@@ -1,89 +1,53 @@
 # Cooperative V2X Dataset Preprocessing
 
-This repository is the **data preparation and validation layer for a master's thesis on cooperative vehicle-to-everything (V2X) perception**. Its purpose is to make different vehicle–infrastructure datasets accessible through **one consistent Python interface**, so subsequent experiments can use the same sample structure instead of implementing a separate loader for every dataset.
+## Purpose
 
-The adapters read the original datasets **without modifying the raw files** and return a `CanonicalV2XSample` defined in `schema.py`. Each sample contains its source and timestamp information, participating agents, LiDAR data, available camera information, agent-to-reference transforms, and 3D object annotations. The canonical convention is **x forward, y left, z up**, with 3D boxes represented as `[x, y, z, length, width, height, yaw]`.
+This project is part of a master's thesis on **cooperative vehicle-to-everything (V2X) perception**.
 
-## Dataset support
+V2X datasets contain information collected by vehicles and roadside infrastructure, such as LiDAR point clouds, camera images, sensor positions, and object annotations. However, each dataset stores and organizes this information differently.
 
-| Dataset | Status | Scope |
-| --- | --- | --- |
-| UrbanIng-V2X | Implemented | Vehicle/infrastructure samples using the official devkit |
-| V2XPnP | Implemented | Multi-agent LiDAR, poses and 3D annotations; native camera data retained |
-| TUMTraf-V2X | Implemented | Supported mini/OpenLABEL layout and ASCII PCD point clouds |
-| DeepAccident | Planned | Adapter not implemented yet |
+**The goal is to make these datasets accessible through one common structure, regardless of which dataset the data comes from.** Instead of writing different processing code for every dataset, we can access them in the same way and use their standardized output for later analysis, visualization, and machine-learning experiments.
 
-**Important:** A shared schema does not, by itself, prove correct physical alignment across datasets. Camera projection, 3D box overlays and real-world coordinate alignment still need independent validation. V2XPnP camera calibration is preserved in `agent.extras["native_cameras"]` rather than converted into unverified canonical camera transforms.
+The project currently works with four datasets: **UrbanIng-V2X, V2XPnP, TUMTraf-V2X, and DeepAccident**.
 
-## Setup
+## How the project works
 
-Use **Python 3.10+**. From the repository root:
+The design has **three conceptual layers**:
 
-```bash
-python -m venv .venv
-python -m pip install -r requirements.txt
-python -m pip install -e . --no-deps
-```
+| Layer | Responsibility |
+| --- | --- |
+| **1. Native datasets** | The original data, stored in each dataset's own files, formats, and coordinate systems. |
+| **2. Dataset adapters** | Read the original files and translate their information into our shared representation. Each dataset has its own adapter because its native format is different. |
+| **3. Canonical schema** | Defines the common output structure (`CanonicalV2XSample`), including agents, available sensors, coordinate transforms, and annotations. It also checks that samples follow the expected structure. |
 
-Activate the virtual environment first (`.venv\Scripts\Activate.ps1` on Windows PowerShell or `source .venv/bin/activate` on Linux/macOS). Dataset files are **not included** in the repository.
+In short:
 
-## Configure dataset paths
+**Original dataset → Dataset-specific adapter → Common V2X sample → Later use**
 
-Edit `configs/dataset_paths.yaml` to point to your local datasets:
+The original dataset files are not changed. Each adapter presents their information through the same interface, so later code does not need to understand every native file format.
 
-```yaml
-datasets:
-  urbaning: datasets/UrbanIng-V2X
-  v2xpnp: datasets/V2XPnP
-  tumtraf: datasets/TumTraf
-  deepaccident: datasets/DeepAccident
-outputs:
-  root: outputs
-```
+## Project structure
 
-These are examples, not required directory names. Relative paths resolve from the **repository root**, not the terminal's working directory; absolute paths are also supported. You can override a path for individual commands using `--root`, without changing the YAML file.
+| File or directory | Purpose |
+| --- | --- |
+| `schema.py` | Defines the common V2X data structure and its validation rules. |
+| `adapters/base_adapter.py` | Defines how all dataset adapters must be accessed. |
+| `adapters/urbaning_adapter.py` | Reads and converts UrbanIng-V2X data. |
+| `adapters/v2xpnp_adapter.py` | Reads and converts V2XPnP data. |
+| `adapters/tumtraf_adapter.py` | Reads and converts TUMTraf-V2X data. |
+| `adapters/deepaccident_adapter.py` | Reads DeepAccident metadata and builds provisional canonical samples. |
+| `project_paths.py` and `configs/` | Manage dataset locations without hard-coded machine-specific paths. |
+| `tests/` | Check sample structure, data loading, coordinate calculations, and portability. |
+| `scripts/` | Contains supporting utilities. |
+| `requirements.txt` and `pyproject.toml` | Define the project's Python dependencies and configuration. |
+| `ADAPTERS_EXPLAINED.md` | Briefly explains the reasoning behind each adapter. |
+| `TESTS_EXPLAINED.md` | Explains what the tests check and the limits of their results. |
 
-## Use the adapters
+## What has been developed
 
-```python
-from project_paths import dataset_path
-from adapters.v2xpnp_adapter import V2XPnPAdapter
+- A **shared V2X schema** so different datasets can return the same type of sample.
+- A **common adapter interface** so samples can be accessed consistently.
+- **Four dataset adapters** to handle the differences between the original datasets.
+- **Validation and test scripts** to check data structure, geometry, and project portability.
 
-adapter = V2XPnPAdapter(dataset_path("v2xpnp"), reference_agent_id=None)
-sample = adapter[0]
-sample.validate()
-
-print(sample.source.sequence_id, sample.source.frame_id)
-print(sample.reference_agent_id, len(sample.agents))
-print(sample.annotations.boxes_3d.shape)
-```
-
-The equivalent classes are `UrbanIngAdapter` in `adapters/urbaning_adapter.py` and `TUMTrafAdapter` in `adapters/tumtraf_adapter.py` (use `split="train"` for TUMTraf). Adapters load canonical samples **on demand**; they do not automatically export a new dataset.
-
-For quick dataset checks and geometric diagnostics:
-
-```bash
-python -m tests.test_urbaning
-python -m tests.test_v2xpnp_adapter
-python -m tests.test_tumtraf_adapter --split train
-python -m tests.test_v2xpnp_lidar_alignment --output outputs/v2xpnp
-```
-
-For an external dataset location, append `--root /path/to/dataset`. Other geometry and multiframe checks are in `tests/`.
-
-## Testing and project structure
-
-```bash
-python -m pytest tests/ -q
-```
-
-**Latest local result: 35 passed, 0 skipped, 0 failed (13 October 2026).** This establishes that the current automated checks pass; it is not a substitute for physical alignment validation. If a dataset is unavailable at its configured path, some integration tests may skip.
-
-- `schema.py` — shared canonical sample definition and validation
-- `adapters/` — dataset-specific readers and transformations
-- `project_paths.py` and `configs/` — portable path configuration
-- `tests/` — schema, integration, geometry and portability checks
-- `scripts/` — supporting utilities, including an UrbanIng test-data downloader
-- `outputs/` — generated diagnostics; `datasets/` — locally supplied raw data
-
-The next development steps are **cross-dataset geometric validation, consistent class mapping and the DeepAccident adapter**.
+**Current scope:** The common interface is established, but not every sensor or annotation has been fully converted and physically verified. Where conversion is uncertain, the original information is preserved rather than presented as validated canonical data. Further real-data and cross-dataset validation is still needed before relying on the outputs for model training.
