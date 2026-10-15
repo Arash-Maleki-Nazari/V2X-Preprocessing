@@ -2,52 +2,87 @@
 
 ## Purpose
 
-This project is part of a master's thesis on **cooperative vehicle-to-everything (V2X) perception**.
+This master's thesis project provides a **common way to access data from different cooperative vehicle-to-everything (V2X) datasets**.
 
-V2X datasets contain information collected by vehicles and roadside infrastructure, such as LiDAR point clouds, camera images, sensor positions, and object annotations. However, each dataset stores and organizes this information differently.
+V2X datasets contain information from vehicles and roadside infrastructure, such as LiDAR point clouds, camera images, sensor positions, and object annotations. However, each dataset stores this information in different files, structures, and coordinate systems.
 
-**The goal is to make these datasets accessible through one common structure, regardless of which dataset the data comes from.** Instead of writing different processing code for every dataset, we can access them in the same way and use their standardized output for later analysis, visualization, and machine-learning experiments.
+The goal is to **read these different formats and represent their data in one shared structure**, regardless of the source dataset. This makes it easier to build analysis, visualization, and machine-learning code that can work across datasets without needing a separate data-reading procedure for each one.
 
-The project currently works with four datasets: **UrbanIng-V2X, V2XPnP, TUMTraf-V2X, and DeepAccident**.
+The four datasets covered are **UrbanIng-V2X, V2XPnP, TUMTraf-V2X, and DeepAccident**.
 
 ## How the project works
 
-The design has **three conceptual layers**:
+The project has three main conceptual layers:
 
 | Layer | Responsibility |
 | --- | --- |
-| **1. Native datasets** | The original data, stored in each dataset's own files, formats, and coordinate systems. |
-| **2. Dataset adapters** | Read the original files and translate their information into our shared representation. Each dataset has its own adapter because its native format is different. |
-| **3. Canonical schema** | Defines the common output structure (`CanonicalV2XSample`), including agents, available sensors, coordinate transforms, and annotations. It also checks that samples follow the expected structure. |
+| **1. Native datasets** | Provide the original sensor data, annotations, and metadata in their own formats. |
+| **2. Dataset adapters** | Understand each dataset's format, read its files, and convert the supported information into the common representation. |
+| **3. Canonical schema** | Defines the structure that every adapter must return and the validation rules that structure must satisfy. |
 
-In short:
+The **canonical schema defines the target format**; it is not a separate file-conversion step. At runtime, data flows in this order:
 
-**Original dataset → Dataset-specific adapter → Common V2X sample → Later use**
+```text
+Original V2X dataset
+        |
+        v
+Dataset-specific adapter
+        |
+        v
+CanonicalV2XSample (defined in schema.py)
+        |
+        v
+Structural validation
+        |
+        v
+Downstream use (analysis, visualization, or model training)
+```
 
-The original dataset files are not changed. Each adapter presents their information through the same interface, so later code does not need to understand every native file format.
+All dataset adapters inherit a shared interface from `BaseAdapter`, so their samples can be accessed in the same way, for example `adapter[0]`. The adapter loads and converts the native data; the schema describes the expected result; and validation checks that the returned sample follows that structure.
+
+**The original dataset files are left unchanged.** If a sensor or conversion has not yet been verified, the adapter can preserve the original information as metadata rather than incorrectly presenting it as fully standardized data.
 
 ## Project structure
 
-| File or directory | Purpose |
-| --- | --- |
-| `schema.py` | Defines the common V2X data structure and its validation rules. |
-| `adapters/base_adapter.py` | Defines how all dataset adapters must be accessed. |
-| `adapters/urbaning_adapter.py` | Reads and converts UrbanIng-V2X data. |
-| `adapters/v2xpnp_adapter.py` | Reads and converts V2XPnP data. |
-| `adapters/tumtraf_adapter.py` | Reads and converts TUMTraf-V2X data. |
-| `adapters/deepaccident_adapter.py` | Reads DeepAccident metadata and builds provisional canonical samples. |
-| `project_paths.py` and `configs/` | Manage dataset locations without hard-coded machine-specific paths. |
-| `tests/` | Check sample structure, data loading, coordinate calculations, and portability. |
-| `scripts/` | Contains supporting utilities. |
-| `requirements.txt` and `pyproject.toml` | Define the project's Python dependencies and configuration. |
-| `ADAPTERS_EXPLAINED.md` | Briefly explains the reasoning behind each adapter. |
-| `TESTS_EXPLAINED.md` | Explains what the tests check and the limits of their results. |
+```text
+Preprocessing/
+├── adapters/
+|   ├── adapters_guidance.md     # Short guide to adapter design
+│   ├── base_adapter.py          # Shared adapter interface
+│   ├── urbaning_adapter.py      # UrbanIng-V2X reader and converter
+│   ├── v2xpnp_adapter.py        # V2XPnP reader and converter
+│   ├── tumtraf_adapter.py       # TUMTraf-V2X reader and converter
+│   └── deepaccident_adapter.py  # DeepAccident metadata adapter
+│
+├── configs/
+│   └── dataset_paths.yaml       # Dataset and output locations
+│
+├── tests/
+|   ├──tests_guidance.md         # Short guide to the tests
+│   ├── cli.py                   # Shared test command-line helpers
+│   ├── conftest.py              # Shared pytest setup
+│   ├── test_urbaning.py
+│   ├── test_urbaning_geometry.py
+│   ├── test_urbaning_multiframe.py
+│   ├── test_v2xpnp_adapter.py
+│   ├── test_v2xpnp_geometry.py
+│   ├── test_v2xpnp_lidar_alignment.py
+│   ├── test_v2xpnp_overlap_alignment.py
+│   ├── test_tumtraf_adapter.py
+│   ├── test_deepaccident_adapter.py
+│   └── test_portability.py
+│
+├── scripts/                      # Supporting utilities
+├── schema.py                     # Common sample structure and validation
+├── project_paths.py              # Portable path handling
+├── requirements.txt              # Python dependencies
+├── pyproject.toml                # Python project configuration
+└── README.md                     # Project overview
+```
 
-## What has been developed
+## Main folders at a glance
 
-- A **shared V2X schema** so different datasets can return the same type of sample.
-- A **common adapter interface** so samples can be accessed consistently.
-- **Four dataset adapters** to handle the differences between the original datasets.
-- **Validation and test scripts** to check data structure, geometry, and project portability.
-
-**Current scope:** The common interface is established, but not every sensor or annotation has been fully converted and physically verified. Where conversion is uncertain, the original information is preserved rather than presented as validated canonical data. Further real-data and cross-dataset validation is still needed before relying on the outputs for model training.
+- **`adapters/`** — Reads each dataset in its original format and returns samples in the shared structure.
+- **`configs/`** — Stores dataset and output paths so the code can run with different file locations.
+- **`tests/`** — Checks that reading, conversion, and validation behave as expected; some tests create plots for manual inspection.
+- **`scripts/`** — Contains supporting utilities, such as downloading test data.
